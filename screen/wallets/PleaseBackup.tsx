@@ -149,6 +149,29 @@ const PleaseBackup: React.FC = () => {
     setHasConfirmedWritten(false);
   };
 
+  // Detox resolves element(by.id(...)) against the currently focused window only. Wrapping this
+  // in a real Modal (below) — necessary in production to keep BlurView from capturing it — makes
+  // the Modal's Dialog take window focus, which makes everything in the main window (including
+  // PleaseBackupScrollView and SkipVerifyBackdoor) unreachable to e2e tests. No current e2e spec
+  // exercises this reveal interaction directly (all bypass via SkipVerifyBackdoor), so rendering
+  // it as a plain sibling under isE2E() costs no real coverage.
+  const revealContent = revealWindowLayout && (
+    <View style={styles.modalRoot} pointerEvents="box-none">
+      <TouchableOpacity
+        style={[styles.backButtonGhost, backButtonWindowLayout]}
+        onPress={handleBackToIntro}
+        testID="RevealBackButtonGhost"
+      />
+      <TouchableOpacity style={[styles.revealOverlay, revealWindowLayout]} onPress={() => setIsRevealed(true)} testID="RevealSeedPhrase">
+        <View style={[styles.revealCircle, { backgroundColor: colors.revealCircleBackground }]}>
+          <RevealEyeIcon size={64} color={colors.white} />
+        </View>
+        <Text style={[styles.revealTitle, { color: colors.textPrimary }]}>{loc.pleasebackup.tap_to_reveal}</Text>
+        <Text style={[styles.revealCaption, { color: colors.textSecondary }]}>{loc.pleasebackup.tap_to_reveal_caption}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
 
@@ -286,28 +309,15 @@ const PleaseBackup: React.FC = () => {
 
             {/* onRequestClose mirrors the header's back handler — the Modal's Dialog intercepts
                 the hardware back key natively before BackHandler would see it. */}
-            {!isRevealed && revealWindowLayout && (
-              <Modal transparent animationType="none" onRequestClose={handleBackToIntro}>
-                <View style={styles.modalRoot} pointerEvents="box-none">
-                  <TouchableOpacity
-                    style={[styles.backButtonGhost, backButtonWindowLayout]}
-                    onPress={handleBackToIntro}
-                    testID="RevealBackButtonGhost"
-                  />
-                  <TouchableOpacity
-                    style={[styles.revealOverlay, revealWindowLayout]}
-                    onPress={() => setIsRevealed(true)}
-                    testID="RevealSeedPhrase"
-                  >
-                    <View style={[styles.revealCircle, { backgroundColor: colors.revealCircleBackground }]}>
-                      <RevealEyeIcon size={64} color={colors.white} />
-                    </View>
-                    <Text style={[styles.revealTitle, { color: colors.textPrimary }]}>{loc.pleasebackup.tap_to_reveal}</Text>
-                    <Text style={[styles.revealCaption, { color: colors.textSecondary }]}>{loc.pleasebackup.tap_to_reveal_caption}</Text>
-                  </TouchableOpacity>
-                </View>
-              </Modal>
-            )}
+            {!isRevealed &&
+              revealContent &&
+              (isE2E() ? (
+                revealContent
+              ) : (
+                <Modal transparent animationType="none" onRequestClose={handleBackToIntro}>
+                  {revealContent}
+                </Modal>
+              ))}
 
             <View style={styles.footer}>
               <Button
