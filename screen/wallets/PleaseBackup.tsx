@@ -10,6 +10,7 @@ import {
   View,
   InteractionManager,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import { useSettings } from '../../hooks/context/useSettings';
 import { useStorage } from '../../hooks/context/useStorage';
 import { useScreenProtect } from '../../hooks/useScreenProtect';
@@ -56,7 +57,7 @@ const PleaseBackup: React.FC = () => {
   const seedPhrase = wallet.getSecret();
   const seedWords = seedPhrase.split(' ');
   const navigation = useExtendedNavigation();
-  const { colors } = useTheme();
+  const { colors, dark } = useTheme();
   const { isScreenCaptureAllowed } = useSettings();
   const { enableScreenProtect, disableScreenProtect } = useScreenProtect();
   const [currentStep, setCurrentStep] = useState<BackupStep>(isE2E() ? BackupStep.SHOW_SEED : BackupStep.INTRO);
@@ -104,7 +105,7 @@ const PleaseBackup: React.FC = () => {
       <SafeAreaView style={styles.safeArea}>
         {currentStep === BackupStep.INTRO && (
           <View style={styles.stepRoot}>
-            <BackupStepHeader onBack={() => navigation.goBack()} filledSteps={2} totalSteps={3} testID="BackupIntroBackButton" />
+            <BackupStepHeader onBack={() => navigation.goBack()} filledSteps={1} totalSteps={3} testID="BackupIntroBackButton" />
 
             <ScrollView contentContainerStyle={styles.introScrollContent}>
               <View style={[styles.iconBadge, { backgroundColor: colors.surfaceSubtle, borderColor: colors.accentSubtle }]}>
@@ -116,11 +117,11 @@ const PleaseBackup: React.FC = () => {
               {BACKUP_TIPS.map(tip => (
                 <View key={tip.bold} style={[styles.tipCard, { borderColor: colors.accentSubtle }]}>
                   <View style={styles.tipIconBadge}>
-                    <tip.Icon size={18} color={colors.primary} />
+                    <tip.Icon size={20} color={colors.primary} />
                   </View>
                   <Text style={styles.tipText}>
                     <Text style={[styles.tipBold, { color: colors.textPrimary }]}>{tip.bold}</Text>
-                    <Text style={[styles.tipBody, { color: colors.textPrimary }]}>{tip.body}</Text>
+                    <Text style={[styles.tipBody, { color: colors.textBright }]}>{tip.body}</Text>
                   </Text>
                 </View>
               ))}
@@ -157,29 +158,34 @@ const PleaseBackup: React.FC = () => {
 
               <View style={styles.wordGridWrapper}>
                 <View style={styles.wordsGrid}>
-                  {isRevealed
-                    ? seedWords.map((word, idx) => (
-                        <View
-                          key={idx}
-                          style={[styles.seedRow, { backgroundColor: colors.cardBackground, borderColor: colors.transactionCardBorder }]}
-                        >
-                          <View
-                            style={[
-                              styles.seedIndexBox,
-                              { backgroundColor: colors.fieldBackground, borderColor: colors.transactionCardBorder },
-                            ]}
-                          >
-                            <Text style={[styles.seedIndexText, { color: colors.textSecondary }]}>{idx + 1}</Text>
-                          </View>
-                          <View style={styles.seedWordBox}>
-                            <Text style={[styles.seedWordText, { color: colors.textPrimary }]}>{word}</Text>
-                          </View>
-                        </View>
-                      ))
-                    : seedWords.map((_, idx) => (
-                        <View key={idx} style={[styles.placeholderCell, { backgroundColor: colors.settingsCardBackground }]} />
-                      ))}
+                  {seedWords.map((word, idx) => (
+                    <View
+                      key={idx}
+                      style={[styles.seedRow, { backgroundColor: colors.cardBackground, borderColor: colors.transactionCardBorder }]}
+                    >
+                      <View
+                        style={[
+                          styles.seedIndexBox,
+                          { backgroundColor: colors.fieldBackground, borderColor: colors.transactionCardBorder },
+                        ]}
+                      >
+                        <Text style={[styles.seedIndexText, { color: colors.textSecondary }]}>{idx + 1}</Text>
+                      </View>
+                      <View style={styles.seedWordBox}>
+                        <Text style={[styles.seedWordText, { color: colors.textPrimary }]}>{word}</Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
+
+                {!isRevealed && (
+                  <BlurView
+                    style={styles.gridBlur}
+                    blurType={dark ? 'dark' : 'light'}
+                    blurAmount={20}
+                    reducedTransparencyFallbackColor={colors.settingsCardBackground}
+                  />
+                )}
 
                 {!isRevealed && (
                   <TouchableOpacity style={styles.revealOverlay} onPress={() => setIsRevealed(true)} testID="RevealSeedPhrase">
@@ -265,16 +271,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  introTitle: { fontFamily: ClashFont.medium, fontSize: 32, marginBottom: 12 },
+  introTitle: { fontFamily: ClashFont.medium, fontSize: 32, lineHeight: 40, letterSpacing: -1.2, marginBottom: 12 },
   introSubtitle: { fontFamily: ClashFont.regular, fontSize: 15, lineHeight: 22.5, marginBottom: 24 },
   tipCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     borderWidth: 1,
     borderRadius: 16,
-    padding: 16,
+    padding: 17,
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   tipIconBadge: {
     width: 36,
@@ -310,7 +316,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 12,
+    rowGap: 13,
   },
   seedRow: {
     flexDirection: 'row',
@@ -333,7 +339,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   seedWordText: { fontFamily: ClashFont.medium, fontSize: 15 },
-  placeholderCell: { width: '48%', height: 43, borderRadius: 16 },
+  gridBlur: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
   revealOverlay: {
     position: 'absolute',
     top: 0,

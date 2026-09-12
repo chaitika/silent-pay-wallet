@@ -118,12 +118,13 @@ const SeedVerification: React.FC<SeedVerificationProps> = ({ seed, onSuccess, on
       [index]: isCorrect ? WordStatus.CORRECT : WordStatus.INCORRECT,
     }));
 
-    // Track the selection order for correct words
+    // Track the selection order so the badge shows a position for correct AND incorrect taps
+    setSelectionOrder(prev => ({
+      ...prev,
+      [index]: expectedPosition,
+    }));
+
     if (isCorrect) {
-      setSelectionOrder(prev => ({
-        ...prev,
-        [index]: expectedPosition,
-      }));
       setSelectedIndices(prev => [...prev, index]);
     }
 
@@ -194,8 +195,8 @@ const SeedVerification: React.FC<SeedVerificationProps> = ({ seed, onSuccess, on
           testID="ShowPhraseAgain"
           borderRadius={16}
           backgroundColor="transparent"
-          buttonTextColor="#444444"
-          icon={<ShowPhraseEyeIcon color="#444444" />}
+          buttonTextColor={colors.textEmphasis}
+          icon={<ShowPhraseEyeIcon color={colors.textEmphasis} />}
           style={[styles.footerButton, { borderColor: colors.accentSubtle }]}
         />
       </View>
@@ -210,8 +211,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
   },
-  title: { fontFamily: ClashFont.medium, fontSize: 32, marginBottom: 12 },
-  subtitle: { fontFamily: ClashFont.regular, fontSize: 15, lineHeight: 22, marginBottom: 24 },
+  title: { fontFamily: ClashFont.medium, fontSize: 32, lineHeight: 40, letterSpacing: -1.2, marginBottom: 12 },
+  subtitle: { fontFamily: ClashFont.regular, fontSize: 15, lineHeight: 22.5, marginBottom: 24 },
   wordsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

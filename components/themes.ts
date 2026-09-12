@@ -141,7 +141,7 @@ const tokens = {
   statusError: pair(palette.red550, palette.red500),
   errorAccent: same(palette.red500), // vivid red badge fill (recovery-phrase verify), distinct from statusError's softer border tone
   verifyCorrectFill: pair('#EBF5ED', palette.green900), // correct-answer pill fill (recovery-phrase verify)
-  verifyIncorrectFill: pair('#FCD3CA', palette.maroon900), // incorrect-answer pill fill (recovery-phrase verify)
+  verifyIncorrectFill: pair('#FCD3CA', palette.red950), // incorrect-answer pill fill (recovery-phrase verify)
   surfaceSubtle: pair(palette.violet50, palette.violet920), // banner / card background
   accentSubtle: pair(palette.violet100, palette.slate880), // banner & card border, "check again" button bg, scanning icon ring
   accentSubtleDisabled: pair(palette.violet150Alpha, palette.violet850), // disabled bg for accentSubtle/brandPrimary "soft" buttons
@@ -162,7 +162,7 @@ const tokens = {
   // Light keeps five distinct greys below; dark deliberately collapses every secondary/meta/
   // muted/chevron role (and statusPaused above) onto slate400 - the single text/secondary value
   // the Figma dark collection defines. Intentional, not unfinished placeholders.
-  textPrimary: pair('#1A1A1A', palette.gray375), // titles, primary copy
+  textPrimary: pair(palette.black, palette.gray75), // titles, primary copy
   textSecondary: pair('#8E8E93', palette.slate400), // subtitles, privacy copy
   textMeta: pair('#92929B', palette.slate400), // ETA / "%" meta text
   textMuted: pair('#7B7A7E', palette.slate400), // card row labels
