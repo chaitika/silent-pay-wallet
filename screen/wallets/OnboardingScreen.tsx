@@ -81,6 +81,7 @@ const OnboardingScreen: React.FC = () => {
             onPress={handleContinue}
             testID="CreateWallet"
             borderRadius={16}
+            backgroundColor={colors.vividAccent}
             style={styles.button}
           />
           <Button
@@ -88,8 +89,8 @@ const OnboardingScreen: React.FC = () => {
             onPress={importWallet}
             testID="ImportWallet"
             borderRadius={16}
-            backgroundColor="transparent"
-            buttonTextColor={colors.primary}
+            backgroundColor={colors.restoreButtonBackground}
+            buttonTextColor={colors.mutedAccentText}
             style={[styles.button, styles.secondaryButton, { borderColor: colors.accentSubtle }]}
           />
         </View>

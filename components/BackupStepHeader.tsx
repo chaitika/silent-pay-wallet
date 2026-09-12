@@ -24,7 +24,7 @@ const BackupStepHeader: React.FC<BackupStepHeaderProps> = ({ onBack, filledSteps
         {Array.from({ length: totalSteps }).map((_, idx) => (
           <View
             key={idx}
-            style={[styles.progressSegment, { backgroundColor: idx < filledSteps ? colors.primary : colors.progressTrack }]}
+            style={[styles.progressSegment, { backgroundColor: idx < filledSteps ? colors.vividAccent : colors.progressTrack }]}
           />
         ))}
       </View>

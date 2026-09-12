@@ -59,7 +59,7 @@ const VerifyWordPill: React.FC<VerifyWordPillProps> = ({ word, status, position,
         style={[
           styles.pill,
           styles.pillDefault,
-          { backgroundColor: colors.settingsCardBackground, borderColor: colors.settingsCardBorder },
+          { backgroundColor: colors.verifyDefaultPillBackground, borderColor: colors.verifyDefaultPillBorder },
         ]}
         onPress={onPress}
       >
@@ -181,7 +181,7 @@ const SeedVerification: React.FC<SeedVerificationProps> = ({ seed, onSuccess, on
         </View>
 
         {errorMessage && (
-          <View style={[styles.errorContainer, { backgroundColor: colors.surfaceError, borderColor: colors.statusError }]}>
+          <View style={[styles.errorContainer, { backgroundColor: colors.verifyErrorBannerBackground, borderColor: colors.statusError }]}>
             <Icon name="info-outline" type="material" size={18} color={colors.statusError} />
             <Text style={[styles.errorText, { color: colors.statusError }]}>{errorMessage}</Text>
           </View>
@@ -197,7 +197,7 @@ const SeedVerification: React.FC<SeedVerificationProps> = ({ seed, onSuccess, on
           backgroundColor="transparent"
           buttonTextColor={colors.textEmphasis}
           icon={<ShowPhraseEyeIcon color={colors.textEmphasis} />}
-          style={[styles.footerButton, { borderColor: colors.accentSubtle }]}
+          style={[styles.footerButton, { borderColor: colors.verifyShowPhraseBorder }]}
         />
       </View>
     </View>

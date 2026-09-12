@@ -1,7 +1,9 @@
 import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,7 +18,7 @@ import { useStorage } from '../../hooks/context/useStorage';
 import { useScreenProtect } from '../../hooks/useScreenProtect';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation.ts';
 import { AddWalletStackParamList } from '../../navigation/AddWalletStack';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import loc from '../../loc';
 import SeedVerification from '../../components/SeedVerification';
 import { isE2E } from '../../helpers/e2e';
@@ -29,12 +31,14 @@ import WritePaperIcon from '../../components/icons/WritePaperIcon';
 import OfflineIcon from '../../components/icons/OfflineIcon';
 import NoShareIcon from '../../components/icons/NoShareIcon';
 import EyeIcon from '../../components/icons/EyeIcon';
-import InfoIcon from '../../components/icons/InfoIcon';
+import CameraOffIcon from '../../components/icons/CameraOffIcon';
 import CheckboxUncheckedIcon from '../../components/icons/CheckboxUncheckedIcon';
 import CheckboxCheckedIcon from '../../components/icons/CheckboxCheckedIcon';
 import RevealEyeIcon from '../../components/icons/RevealEyeIcon';
 
 type RouteProps = RouteProp<AddWalletStackParamList, 'PleaseBackup'>;
+
+type Rect = { top: number; left: number; width: number; height: number };
 
 enum BackupStep {
   INTRO = 'intro',
@@ -50,6 +54,9 @@ const BACKUP_TIPS = [
 
 const SKIP_VERIFY_TAP_THRESHOLD = 5;
 
+// Android's blur reads much stronger than iOS per unit (different underlying implementations).
+const GRID_BLUR_AMOUNT = Platform.select({ android: 8, default: 20 });
+
 const PleaseBackup: React.FC = () => {
   const { wallets } = useStorage();
   const { walletID } = useRoute<RouteProps>().params;
@@ -57,13 +64,64 @@ const PleaseBackup: React.FC = () => {
   const seedPhrase = wallet.getSecret();
   const seedWords = seedPhrase.split(' ');
   const navigation = useExtendedNavigation();
-  const { colors, dark } = useTheme();
+  const { colors } = useTheme();
   const { isScreenCaptureAllowed } = useSettings();
   const { enableScreenProtect, disableScreenProtect } = useScreenProtect();
   const [currentStep, setCurrentStep] = useState<BackupStep>(isE2E() ? BackupStep.SHOW_SEED : BackupStep.INTRO);
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasConfirmedWritten, setHasConfirmedWritten] = useState(false);
   const [skipVerifyTaps, setSkipVerifyTaps] = useState(0);
+
+  // BlurView's Android capture root is the whole Activity content view, not its own bounds
+  // (hardcoded natively, not a prop) — rendered as a position-matched sibling overlay to keep the
+  // blur visually scoped to the grid. Same capture-root issue means the reveal circle needs a
+  // genuinely separate native window (Modal, below) — a same-window sibling still gets swept in.
+  const [gridOverlayLayout, setGridOverlayLayout] = useState<Rect | null>(null);
+  const [revealWindowLayout, setRevealWindowLayout] = useState<Rect | null>(null);
+  const gridWrapperRef = useRef<View>(null);
+  const insets = useSafeAreaInsets();
+
+  const handleGridLayout = useCallback(() => {
+    // measureInWindow gives screen-absolute coordinates. Retried via rAF on failure: the native
+    // view can still be mid-creation when this runs, and measureInWindow then calls back with no
+    // arguments at all (x/y come back undefined) — keeps retrying until the view actually exists.
+    // Self-terminates on unmount, since the ref goes null and further calls become no-ops.
+    const measure = () => {
+      gridWrapperRef.current?.measureInWindow((x, y, width, height) => {
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
+          requestAnimationFrame(measure);
+          return;
+        }
+        setRevealWindowLayout({ left: x, top: y, width, height });
+        // gridRevealOverlay renders inside stepRoot (not the Modal), so its position is relative
+        // to stepRoot — which, as SafeAreaView's direct unpadded child, starts exactly at the
+        // safe-area insets from the true screen origin (no native measurement needed for that).
+        setGridOverlayLayout({ left: x - insets.left, top: y - insets.top, width, height });
+      });
+    };
+    requestAnimationFrame(measure);
+  }, [insets.left, insets.top]);
+
+  // Modal's Dialog swallows all screen touches while visible (Android default), including the
+  // header back button — this invisible same-position target restores it, using
+  // BackupStepHeader's own fixed offsets (no ref/measurement needed — see insets above).
+  const backButtonWindowLayout: Rect = { left: insets.left + 24, top: insets.top + 16, width: 32, height: 32 };
+
+  // Revealed: only the index box carries a fill — the word half is transparent, matching design.
+  const pillColors = isRevealed
+    ? {
+        rowBg: colors.transparent,
+        rowBorder: colors.revealedPillBorder,
+        indexBg: colors.gridContainerBackground,
+        indexBorder: colors.revealedPillBorder,
+      }
+    : {
+        rowBg: colors.cardBackground,
+        rowBorder: colors.transactionCardBorder,
+        indexBg: colors.fieldBackground,
+        indexBorder: colors.transactionCardBorder,
+      };
+
   const handleVerifyComplete = useCallback(() => {
     InteractionManager.runAfterInteractions(() => {
       navigation.navigateToWalletsList();
@@ -81,6 +139,14 @@ const PleaseBackup: React.FC = () => {
 
   const handleBackToSeed = () => {
     setCurrentStep(BackupStep.SHOW_SEED);
+  };
+
+  // Re-arms the "make sure no one is watching" gate: without this, leaving and returning to this
+  // step shows the seed already revealed and the checkbox already checked from last time.
+  const handleBackToIntro = () => {
+    setCurrentStep(BackupStep.INTRO);
+    setIsRevealed(false);
+    setHasConfirmedWritten(false);
   };
 
   useEffect(() => {
@@ -117,7 +183,7 @@ const PleaseBackup: React.FC = () => {
               {BACKUP_TIPS.map(tip => (
                 <View key={tip.bold} style={[styles.tipCard, { borderColor: colors.accentSubtle }]}>
                   <View style={styles.tipIconBadge}>
-                    <tip.Icon size={20} color={colors.primary} />
+                    <tip.Icon size={20} color={colors.tipIconColor} />
                   </View>
                   <Text style={styles.tipText}>
                     <Text style={[styles.tipBold, { color: colors.textPrimary }]}>{tip.bold}</Text>
@@ -142,60 +208,46 @@ const PleaseBackup: React.FC = () => {
 
         {currentStep === BackupStep.SHOW_SEED && (
           <View style={styles.stepRoot}>
-            <BackupStepHeader onBack={() => setCurrentStep(BackupStep.INTRO)} filledSteps={2} totalSteps={3} testID="RevealBackButton" />
+            <BackupStepHeader onBack={handleBackToIntro} filledSteps={2} totalSteps={3} testID="RevealBackButton" />
 
             <ScrollView contentContainerStyle={styles.revealScrollContent} testID="PleaseBackupScrollView">
               <Text style={[styles.title, { color: colors.textPrimary }]}>{loc.pleasebackup.title}</Text>
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{loc.pleasebackup.text}</Text>
 
               <View style={[styles.warningBanner, { backgroundColor: colors.surfaceSubtle, borderColor: colors.accentSubtle }]}>
-                <InfoIcon size={20} color={colors.primary} />
+                <CameraOffIcon size={20} color={colors.vividAccent} />
                 <Text style={styles.warningText}>
-                  <Text style={{ color: colors.textPrimary }}>{loc.pleasebackup.screenshot_warning_prefix}</Text>
-                  <Text style={[styles.warningEmphasis, { color: colors.primary }]}>{loc.pleasebackup.screenshot_warning_emphasis}</Text>
+                  <Text style={{ color: colors.warningBannerPrefixText }}>{loc.pleasebackup.screenshot_warning_prefix}</Text>
+                  <Text style={[styles.warningEmphasis, { color: colors.mutedAccentText }]}>
+                    {loc.pleasebackup.screenshot_warning_emphasis}
+                  </Text>
                 </Text>
               </View>
 
-              <View style={styles.wordGridWrapper}>
+              <View
+                style={[styles.wordGridWrapper, { backgroundColor: isRevealed ? colors.transparent : colors.gridContainerBackground }]}
+                onLayout={handleGridLayout}
+                ref={gridWrapperRef}
+              >
                 <View style={styles.wordsGrid}>
                   {seedWords.map((word, idx) => (
-                    <View
-                      key={idx}
-                      style={[styles.seedRow, { backgroundColor: colors.cardBackground, borderColor: colors.transactionCardBorder }]}
-                    >
-                      <View
-                        style={[
-                          styles.seedIndexBox,
-                          { backgroundColor: colors.fieldBackground, borderColor: colors.transactionCardBorder },
-                        ]}
-                      >
-                        <Text style={[styles.seedIndexText, { color: colors.textSecondary }]}>{idx + 1}</Text>
-                      </View>
-                      <View style={styles.seedWordBox}>
-                        <Text style={[styles.seedWordText, { color: colors.textPrimary }]}>{word}</Text>
+                    <View key={idx} style={[styles.seedRowShadow, { shadowColor: colors.black }]}>
+                      <View style={[styles.seedRow, { backgroundColor: pillColors.rowBg, borderColor: pillColors.rowBorder }]}>
+                        <View style={[styles.seedIndexBox, { backgroundColor: pillColors.indexBg, borderColor: pillColors.indexBorder }]}>
+                          <Text style={[styles.seedIndexText, { color: colors.textSecondary }]}>{idx + 1}</Text>
+                        </View>
+                        <View style={styles.seedWordBox}>
+                          {isRevealed ? (
+                            <Text style={[styles.seedWordText, { color: colors.textPrimary }]}>{word}</Text>
+                          ) : (
+                            // Solid bar, not real text: glyphs are too thin for the blur to hold a visible shape.
+                            <View style={[styles.seedWordPlaceholder, { backgroundColor: colors.textPrimary }]} />
+                          )}
+                        </View>
                       </View>
                     </View>
                   ))}
                 </View>
-
-                {!isRevealed && (
-                  <BlurView
-                    style={styles.gridBlur}
-                    blurType={dark ? 'dark' : 'light'}
-                    blurAmount={20}
-                    reducedTransparencyFallbackColor={colors.settingsCardBackground}
-                  />
-                )}
-
-                {!isRevealed && (
-                  <TouchableOpacity style={styles.revealOverlay} onPress={() => setIsRevealed(true)} testID="RevealSeedPhrase">
-                    <View style={[styles.revealCircle, { backgroundColor: colors.primary }]}>
-                      <RevealEyeIcon size={64} color={colors.white} />
-                    </View>
-                    <Text style={[styles.revealTitle, { color: colors.textPrimary }]}>{loc.pleasebackup.tap_to_reveal}</Text>
-                    <Text style={[styles.revealCaption, { color: colors.textSecondary }]}>{loc.pleasebackup.tap_to_reveal_caption}</Text>
-                  </TouchableOpacity>
-                )}
               </View>
 
               <TouchableOpacity
@@ -203,15 +255,59 @@ const PleaseBackup: React.FC = () => {
                 onPress={() => setHasConfirmedWritten(c => !c)}
                 testID="ConfirmWrittenDown"
                 activeOpacity={0.7}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: hasConfirmedWritten }}
               >
                 {hasConfirmedWritten ? (
                   <CheckboxCheckedIcon size={20} color={colors.primary} />
                 ) : (
-                  <CheckboxUncheckedIcon size={20} color={colors.accentSubtle} />
+                  <CheckboxUncheckedIcon size={20} color={colors.checkboxUncheckedColor} />
                 )}
                 <Text style={[styles.checkboxText, { color: colors.textPrimary }]}>{loc.pleasebackup.confirm_written_down}</Text>
               </TouchableOpacity>
             </ScrollView>
+
+            {!isRevealed && gridOverlayLayout && (
+              <View style={[styles.gridRevealOverlay, gridOverlayLayout]} pointerEvents="box-none">
+                <BlurView
+                  style={styles.gridBlur}
+                  // 'dark' produces a glow/bloom artifact around foreground content that 'light'
+                  // doesn't — forced regardless of theme; gridScrimBackground below handles the
+                  // actual light/dark tint instead.
+                  blurType="light"
+                  overlayColor="transparent"
+                  blurAmount={GRID_BLUR_AMOUNT}
+                  reducedTransparencyFallbackColor={colors.settingsCardBackground}
+                  autoUpdate={false}
+                />
+                <View style={[styles.gridScrim, { backgroundColor: colors.gridScrimBackground }]} pointerEvents="none" />
+              </View>
+            )}
+
+            {/* onRequestClose mirrors the header's back handler — the Modal's Dialog intercepts
+                the hardware back key natively before BackHandler would see it. */}
+            {!isRevealed && revealWindowLayout && (
+              <Modal transparent animationType="none" onRequestClose={handleBackToIntro}>
+                <View style={styles.modalRoot} pointerEvents="box-none">
+                  <TouchableOpacity
+                    style={[styles.backButtonGhost, backButtonWindowLayout]}
+                    onPress={handleBackToIntro}
+                    testID="RevealBackButtonGhost"
+                  />
+                  <TouchableOpacity
+                    style={[styles.revealOverlay, revealWindowLayout]}
+                    onPress={() => setIsRevealed(true)}
+                    testID="RevealSeedPhrase"
+                  >
+                    <View style={[styles.revealCircle, { backgroundColor: colors.revealCircleBackground }]}>
+                      <RevealEyeIcon size={64} color={colors.white} />
+                    </View>
+                    <Text style={[styles.revealTitle, { color: colors.textPrimary }]}>{loc.pleasebackup.tap_to_reveal}</Text>
+                    <Text style={[styles.revealCaption, { color: colors.textSecondary }]}>{loc.pleasebackup.tap_to_reveal_caption}</Text>
+                  </TouchableOpacity>
+                </View>
+              </Modal>
+            )}
 
             <View style={styles.footer}>
               <Button
@@ -220,7 +316,7 @@ const PleaseBackup: React.FC = () => {
                 testID="ContinueToVerify"
                 borderRadius={16}
                 disabled={!hasConfirmedWritten}
-                disabledBackgroundColor={colors.darkGray}
+                disabledBackgroundColor={colors.backupContinueDisabledBackground}
                 disabledTextColor={colors.white}
                 style={styles.footerButton}
               />
@@ -307,10 +403,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   warningText: { flex: 1, fontFamily: ClashFont.regular, fontSize: 14, lineHeight: 20 },
-  warningEmphasis: { fontFamily: ClashFont.regular },
+  warningEmphasis: { fontFamily: ClashFont.medium },
   wordGridWrapper: {
-    position: 'relative',
     marginBottom: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   wordsGrid: {
     flexDirection: 'row',
@@ -318,9 +415,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     rowGap: 13,
   },
+  // Outer shadow wrapper + inner clipped view: iOS clips shadows on a view with overflow:hidden.
+  seedRowShadow: {
+    width: '48%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 1.5,
+    elevation: 2,
+  },
   seedRow: {
     flexDirection: 'row',
-    width: '48%',
+    width: '100%',
     height: 43,
     borderRadius: 16,
     borderWidth: 1,
@@ -339,21 +445,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   seedWordText: { fontFamily: ClashFont.medium, fontSize: 15 },
+  // Lower opacity, not a lighter color: keeps the solid-bar shape the blur needs while matching
+  // the design's subtler post-blur contrast.
+  seedWordPlaceholder: {
+    width: '70%',
+    height: 10,
+    borderRadius: 5,
+    opacity: 0.35,
+  },
+  // Positioned/sized in JS to match the grid's on-screen rect — rendered outside the ScrollView so
+  // BlurView's blur source doesn't tint the rest of the scrollable content.
+  gridRevealOverlay: {
+    position: 'absolute',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
   gridBlur: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 20,
-    overflow: 'hidden',
   },
-  revealOverlay: {
+  gridScrim: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  modalRoot: {
+    flex: 1,
+  },
+  backButtonGhost: {
+    position: 'absolute',
+  },
+  // top/left/width/height come from revealWindowLayout — no static fill here.
+  revealOverlay: {
+    position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
   },
