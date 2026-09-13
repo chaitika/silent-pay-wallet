@@ -36,6 +36,7 @@ interface StorageContextType {
   fetchWalletTransactions: typeof shroudApp.fetchWalletTransactions;
   getBalance: typeof shroudApp.getBalance;
   startAndDecrypt: typeof startAndDecrypt;
+  exportEncryptedBackup: typeof shroudApp.exportEncryptedBackup;
   sleep: typeof shroudApp.sleep;
   getItem: typeof shroudApp.getItem;
   setItem: typeof shroudApp.setItem;
@@ -440,6 +441,7 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
       fetchWalletBalances: shroudApp.fetchWalletBalances,
       fetchWalletTransactions: shroudApp.fetchWalletTransactions,
       fetchAndSaveWalletTransactions,
+      exportEncryptedBackup: shroudApp.exportEncryptedBackup,
       startAndDecrypt,
       getBalance: shroudApp.getBalance,
       walletsInitialized,
