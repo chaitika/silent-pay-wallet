@@ -100,20 +100,4 @@ describe('ContactsProvider', () => {
       { field: 'address', code: 'duplicate', conflictName: 'Anmol Sharma' },
     ]);
   });
-
-  it('resetContacts re-syncs from the singleton after it is mutated directly', () => {
-    shroudApp.contacts = { [ADDR_A]: { name: 'Anmol Sharma', createdAt: 1000, colorIndex: 2 } };
-    const { result } = renderContacts();
-    assert.strictEqual(result.current.contactList.length, 1);
-
-    // Simulates createFakeStorage() blanking the singleton when switching to the
-    // plausible-deniability decoy bucket, bypassing the provider's own setState.
-    shroudApp.contacts = {};
-
-    act(() => {
-      result.current.resetContacts();
-    });
-
-    assert.deepStrictEqual(result.current.contactList, []);
-  });
 });

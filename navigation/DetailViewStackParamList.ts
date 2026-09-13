@@ -53,14 +53,15 @@ export type DetailViewStackParamList = {
   // a second contact, because upsertContact would see no editingAddress.
   ContactEdit: { mode: 'add'; address?: string } | { mode: 'edit'; address: string };
   Tools: undefined;
-  PlausibleDeniability: undefined;
   Licensing: undefined;
   About: undefined;
   ElectrumServerSettings: { server?: ElectrumServerItem };
   BlockExplorerSettings: undefined;
   TorSettings: undefined;
   NetworkSettings: undefined;
-  EncryptStorage: undefined;
+  Security: undefined;
+  ChangePin: undefined;
+  ViewRecoveryPhrase: undefined;
   SelfTest: undefined;
   ReceiveDetails: {
     walletID?: string;

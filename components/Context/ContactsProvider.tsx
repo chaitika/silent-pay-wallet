@@ -24,7 +24,6 @@ export interface ContactsContextType {
   validate: (input: ContactInput) => ContactError[];
   saveContact: (input: ContactInput) => Promise<void>;
   deleteContact: (address: string) => Promise<void>;
-  resetContacts: () => void;
 }
 
 // @ts-ignore default value does not match the type, matching StorageContext's convention
@@ -58,14 +57,6 @@ export const ContactsProvider = ({ children }: { children: React.ReactNode }) =>
 
   const deleteContact = useCallback(async (address: string) => persist(removeContact(shroudApp.contacts, address)), [persist]);
 
-  // Mirrors StorageProvider's resetWallets(): re-syncs from the shroudApp singleton after an
-  // operation that mutates it directly, such as createFakeStorage() switching to the
-  // plausible-deniability decoy bucket. Without this, the real contact list would remain in
-  // React state — and visible via the Contacts screen — after switching to decoy storage.
-  const resetContacts = useCallback(() => {
-    setContacts(shroudApp.contacts);
-  }, []);
-
   const contactList = useMemo(() => listContacts(contacts), [contacts]);
 
   const getContact = useCallback((address: string) => getContactFrom(contacts, address), [contacts]);
@@ -73,8 +64,8 @@ export const ContactsProvider = ({ children }: { children: React.ReactNode }) =>
   const validate = useCallback((input: ContactInput) => validateContact(contacts, input), [contacts]);
 
   const value: ContactsContextType = useMemo(
-    () => ({ contactList, getContact, validate, saveContact, deleteContact, resetContacts }),
-    [contactList, getContact, validate, saveContact, deleteContact, resetContacts],
+    () => ({ contactList, getContact, validate, saveContact, deleteContact }),
+    [contactList, getContact, validate, saveContact, deleteContact],
   );
 
   return <ContactsContext.Provider value={value}>{children}</ContactsContext.Provider>;

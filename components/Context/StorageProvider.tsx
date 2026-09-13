@@ -29,21 +29,14 @@ interface StorageContextType {
   walletsInitialized: boolean;
   setWalletsInitialized: (initialized: boolean) => void;
   refreshAllWalletTransactions: (lastSnappedTo?: number, showUpdateStatusIndicator?: boolean) => Promise<void>;
-  resetWallets: () => void;
   walletTransactionUpdateStatus: WalletTransactionsStatus | string;
   setWalletTransactionUpdateStatus: (status: WalletTransactionsStatus | string) => void;
   getTransactions: typeof shroudApp.getTransactions;
   fetchWalletBalances: typeof shroudApp.fetchWalletBalances;
   fetchWalletTransactions: typeof shroudApp.fetchWalletTransactions;
   getBalance: typeof shroudApp.getBalance;
-  isStorageEncrypted: typeof shroudApp.storageIsEncrypted;
   startAndDecrypt: typeof startAndDecrypt;
-  encryptStorage: typeof shroudApp.encryptStorage;
   sleep: typeof shroudApp.sleep;
-  createFakeStorage: typeof shroudApp.createFakeStorage;
-  decryptStorage: typeof shroudApp.decryptStorage;
-  isPasswordInUse: typeof shroudApp.isPasswordInUse;
-  cachedPassword: typeof shroudApp.cachedPassword;
   getItem: typeof shroudApp.getItem;
   setItem: typeof shroudApp.setItem;
   handleWalletDeletion: (walletID: string) => Promise<boolean>;
@@ -269,10 +262,6 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
     [deleteWallet, saveToDisk, wallets],
   );
 
-  const resetWallets = useCallback(() => {
-    setWallets(shroudApp.getWallets());
-  }, []);
-
   // Initialize wallets
   useEffect(() => {
     if (walletsInitialized) {
@@ -451,19 +440,12 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
       fetchWalletBalances: shroudApp.fetchWalletBalances,
       fetchWalletTransactions: shroudApp.fetchWalletTransactions,
       fetchAndSaveWalletTransactions,
-      isStorageEncrypted: shroudApp.storageIsEncrypted,
-      encryptStorage: shroudApp.encryptStorage,
       startAndDecrypt,
-      cachedPassword: shroudApp.cachedPassword,
       getBalance: shroudApp.getBalance,
       walletsInitialized,
       setWalletsInitialized,
       refreshAllWalletTransactions,
       sleep: shroudApp.sleep,
-      createFakeStorage: shroudApp.createFakeStorage,
-      resetWallets,
-      decryptStorage: shroudApp.decryptStorage,
-      isPasswordInUse: shroudApp.isPasswordInUse,
       walletTransactionUpdateStatus,
       setWalletTransactionUpdateStatus,
       handleWalletDeletion,
@@ -480,7 +462,6 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
       walletsInitialized,
       setWalletsInitialized,
       refreshAllWalletTransactions,
-      resetWallets,
       walletTransactionUpdateStatus,
       handleWalletDeletion,
       scanState,

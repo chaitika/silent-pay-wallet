@@ -1,17 +1,20 @@
-import React, { useCallback, useEffect, useReducer, useRef } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../modules/hapticFeedback';
 import { ShroudTextCentered } from '../ShroudComponents';
 import Button from '../components/Button';
 import SafeArea from '../components/SafeArea';
+import PinKeypad from '../components/PinKeypad';
 import { BiometricType, unlockWithBiometrics, useBiometrics } from '../hooks/useBiometrics';
 import loc from '../loc';
 import { useStorage } from '../hooks/context/useStorage';
+import { useSettings } from '../hooks/context/useSettings';
 import { useTheme } from '../components/themes';
+import { hasPinSet, verifyPin } from '../helpers/pinLock';
 
 enum AuthType {
-  Encrypted,
   Biometrics,
+  Pin,
   None,
   BiometricsUnavailable,
 }
@@ -54,8 +57,10 @@ const UnlockWith: React.FC = () => {
   const { colors } = useTheme();
   const [state, dispatch] = useReducer(reducer, initialState);
   const isUnlockingWallets = useRef(false);
-  const { setWalletsInitialized, isStorageEncrypted, startAndDecrypt } = useStorage();
+  const { setWalletsInitialized, startAndDecrypt } = useStorage();
   const { deviceBiometricType, isBiometricUseCapableAndEnabled, isBiometricUseEnabled } = useBiometrics();
+  const { isPinLayoutScrambled } = useSettings();
+  const [pinError, setPinError] = useState(false);
 
   useEffect(() => {
     setWalletsInitialized(false);
@@ -98,17 +103,16 @@ const UnlockWith: React.FC = () => {
 
   useEffect(() => {
     const startUnlock = async () => {
-      const storageIsEncrypted = await isStorageEncrypted();
       const biometricUseCapableAndEnabled = await isBiometricUseCapableAndEnabled();
       const biometricsUseEnabled = await isBiometricUseEnabled();
       const biometricType = biometricUseCapableAndEnabled ? deviceBiometricType : undefined;
+      const pinIsSet = await hasPinSet();
 
-      if (storageIsEncrypted) {
-        dispatch({ type: SET_AUTH, payload: { type: AuthType.Encrypted, detail: undefined } });
-        unlockWithKey();
-      } else if (biometricUseCapableAndEnabled) {
+      if (biometricUseCapableAndEnabled) {
         dispatch({ type: SET_AUTH, payload: { type: AuthType.Biometrics, detail: biometricType } });
         unlockUsingBiometrics();
+      } else if (pinIsSet) {
+        dispatch({ type: SET_AUTH, payload: { type: AuthType.Pin, detail: undefined } });
       } else if (biometricsUseEnabled && biometricType === undefined) {
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
         dispatch({ type: SET_AUTH, payload: { type: AuthType.BiometricsUnavailable, detail: undefined } });
@@ -130,13 +134,31 @@ const UnlockWith: React.FC = () => {
     }
   };
 
+  const onPinComplete = useCallback(
+    async (pin: string) => {
+      if (isUnlockingWallets.current) return;
+      if (await verifyPin(pin)) {
+        isUnlockingWallets.current = true;
+        if (await startAndDecrypt()) {
+          triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
+          successfullyAuthenticated();
+        } else {
+          isUnlockingWallets.current = false;
+        }
+      } else {
+        triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
+        setPinError(true);
+      }
+    },
+    [startAndDecrypt, successfullyAuthenticated],
+  );
+
   const renderUnlockOptions = () => {
     if (state.isAuthenticating) {
       return <ActivityIndicator color={colors.primary} />;
     } else {
       switch (state.auth.type) {
         case AuthType.Biometrics:
-        case AuthType.Encrypted:
           return <Button onPress={onUnlockPressed} title={loc._.unlock} />;
         case AuthType.BiometricsUnavailable:
           return <ShroudTextCentered>{loc.settings.biometrics_no_longer_available}</ShroudTextCentered>;
@@ -145,6 +167,19 @@ const UnlockWith: React.FC = () => {
       }
     }
   };
+
+  if (state.auth.type === AuthType.Pin) {
+    return (
+      <SafeArea style={styles.root}>
+        <View style={styles.container}>
+          <Image source={require('../img/logo.png')} style={styles.logoImage} resizeMode="contain" />
+        </View>
+        <View style={styles.pinRow}>
+          <PinKeypad scrambled={isPinLayoutScrambled} onComplete={onPinComplete} error={pinError} onErrorShown={() => setPinError(false)} />
+        </View>
+      </SafeArea>
+    );
+  }
 
   return (
     <SafeArea style={styles.root}>
@@ -174,6 +209,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 20,
     paddingHorizontal: 20,
+  },
+  pinRow: {
+    alignSelf: 'center',
+    marginBottom: 20,
   },
   logoImage: {
     width: 100,

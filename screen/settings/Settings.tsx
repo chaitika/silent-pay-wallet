@@ -20,7 +20,7 @@ import { IconProps } from '../../components/icons/types';
 const APP_VERSION = DeviceInfo.getVersion();
 const BUILD_NUMBER = DeviceInfo.getBuildNumber();
 
-type SettingsRoute = 'General' | 'Currency' | 'Contacts' | 'EncryptStorage' | 'NetworkSettings' | 'Tools' | 'About';
+type SettingsRoute = 'General' | 'Currency' | 'Contacts' | 'Security' | 'NetworkSettings' | 'Tools' | 'About';
 
 type SettingsIconColorToken =
   | 'settingsGeneralIconColor'
@@ -68,9 +68,9 @@ const MAIN_ROWS: RowConfig[] = [
   {
     Icon: SecurityIcon,
     colorToken: 'settingsSecurityIconColor',
-    title: loc.settings.encrypt_title,
+    title: loc.settings.security_title,
     subtitle: loc.settings.security_subtitle,
-    route: 'EncryptStorage',
+    route: 'Security',
     testID: 'SecurityButton',
   },
   {

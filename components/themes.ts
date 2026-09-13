@@ -192,6 +192,10 @@ const tokens = {
   shareAddrBorderColor: pair(palette.violet100, palette.violet500Alpha),
   shareAddrBackground: pair('transparent', palette.violet900),
   cardBackground: pair(palette.violet25, '#1A1A1A'),
+  transparent: same('transparent'), // named so conditional styles stay lint-clean (no-inline-styles rejects literal ternary branches)
+  gridContainerBackground: pair('#F8F8FC', '#1A1A28'), // seed-word pill grid container (recovery-phrase reveal)
+  revealedPillBorder: pair(palette.gray200Alpha, '#1A1A28'), // revealed seed-word pill border
+  gridScrimBackground: pair('#FFFFFF33', '#1A1A284D'), // tint over the blurred seed-word grid
 
   // --- Send redesign tokens ---
   fieldBackground: pair(palette.gray50, palette.slate890), // Address / Note field background (bg/secondary)

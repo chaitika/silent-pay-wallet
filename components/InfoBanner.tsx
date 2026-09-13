@@ -10,24 +10,27 @@ import { useTheme } from './themes';
 interface InfoBannerProps {
   text: string;
   emphasis?: string;
-  variant?: 'info' | 'caution';
+  variant?: 'info' | 'caution' | 'error';
   containerStyle?: ViewStyle;
 }
 
 const InfoBanner: React.FC<InfoBannerProps> = ({ text, emphasis, variant = 'info', containerStyle }) => {
   const { colors } = useTheme();
   const [before, match, after] = splitForEmphasis(text, emphasis);
-  const backgroundColor = variant === 'caution' ? colors.surfaceCaution : colors.surfaceSubtle;
-  const iconColor = variant === 'caution' ? colors.iconCaution : colors.primary;
+  const backgroundColor = variant === 'caution' ? colors.surfaceCaution : variant === 'error' ? colors.surfaceError : colors.surfaceSubtle;
+  const iconColor = variant === 'caution' ? colors.iconCaution : variant === 'error' ? colors.statusError : colors.primary;
+  const textColor = variant === 'error' ? colors.statusError : colors.textSecondary;
 
   return (
     <View style={[styles.banner, { backgroundColor }, containerStyle]}>
       <View style={styles.icon}>
         <InfoIcon size={20} color={iconColor} />
       </View>
-      <ShroudText style={[styles.text, { color: colors.textSecondary }]}>
+      <ShroudText style={[styles.text, { color: textColor }]}>
         {before}
-        {match ? <ShroudText style={[styles.emphasis, { color: colors.textPrimary }]}>{match}</ShroudText> : null}
+        {match ? (
+          <ShroudText style={[styles.emphasis, { color: variant === 'error' ? textColor : colors.textPrimary }]}>{match}</ShroudText>
+        ) : null}
         {after}
       </ShroudText>
     </View>

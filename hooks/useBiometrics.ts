@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Alert, Platform } from 'react-native';
 import ReactNativeBiometrics, { BiometryTypes as RNBiometryTypes } from 'react-native-biometrics';
 import RNSecureKeyStore, { ACCESSIBLE } from 'react-native-secure-key-store';
 import loc from '../loc';
@@ -59,52 +58,6 @@ const unlockWithBiometrics = async () => {
     console.debug('Biometrics authentication error', e);
     presentAlert({ message: e.message });
     return false;
-  }
-};
-
-const showKeychainWipeAlert = () => {
-  if (Platform.OS === 'ios') {
-    Alert.alert(
-      loc.settings.encrypt_tstorage,
-      loc.settings.biom_10times,
-      [
-        {
-          text: loc._.cancel,
-          onPress: () => {
-            console.debug('Cancel Pressed');
-          },
-          style: 'cancel',
-        },
-        {
-          text: loc._.ok,
-          onPress: async () => {
-            const { available } = await rnBiometrics.isSensorAvailable();
-            if (!available) {
-              presentAlert({ message: loc.settings.biom_no_passcode });
-              return;
-            }
-            const isAuthenticated = await unlockWithBiometrics();
-            if (isAuthenticated) {
-              Alert.alert(
-                loc.settings.encrypt_tstorage,
-                loc.settings.biom_remove_decrypt,
-                [
-                  { text: loc._.cancel, style: 'cancel' },
-                  {
-                    text: loc._.ok,
-                    style: 'destructive',
-                    onPress: async () => await clearKeychain(),
-                  },
-                ],
-                { cancelable: false },
-              );
-            }
-          },
-          style: 'default',
-        },
-      ],
-      { cancelable: false },
-    );
   }
 };
 
@@ -188,4 +141,4 @@ const useBiometrics = () => {
   };
 };
 
-export { RNBiometryTypes as BiometricType, useBiometrics, showKeychainWipeAlert, unlockWithBiometrics };
+export { RNBiometryTypes as BiometricType, useBiometrics, unlockWithBiometrics };

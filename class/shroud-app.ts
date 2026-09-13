@@ -6,7 +6,6 @@ import Keychain from 'react-native-keychain';
 import RNSecureKeyStore, { ACCESSIBLE } from 'react-native-secure-key-store';
 import Realm from 'realm';
 
-import * as encryption from '../modules/encryption';
 import { GROUP_IO_SHROUD } from '../modules/currency';
 import presentAlert from '../components/Alert';
 import { randomBytes } from './rng';
@@ -14,7 +13,6 @@ import { ExtendedTransaction, Transaction, TWallet } from './wallets/types';
 import { HDSilentPaymentsWallet } from './wallets/hd-bip352-wallet.ts';
 import { readContacts, TContacts } from './contacts';
 
-let usedBucketNum: boolean | number = false;
 let savingInProgress = 0; // its both a flag and a counter of attempts to write to disk
 
 export type TTXMetadata = {
@@ -38,14 +36,12 @@ type TBucketStorage = {
 const isReactNative = typeof navigator !== 'undefined' && navigator?.product === 'ReactNative';
 
 export class ShroudApp {
-  static FLAG_ENCRYPTED = 'data_encrypted';
   static DO_NOT_TRACK = 'donottrack';
 
   private static _instance: ShroudApp | null = null;
 
   static keys2migrate = [ShroudApp.DO_NOT_TRACK];
 
-  public cachedPassword?: false | string;
   public tx_metadata: TTXMetadata;
   public wallets: TWallet[];
   public contacts: TContacts;
@@ -54,7 +50,6 @@ export class ShroudApp {
     this.wallets = [];
     this.tx_metadata = {};
     this.contacts = {};
-    this.cachedPassword = false;
   }
 
   static getInstance(): ShroudApp {
@@ -126,113 +121,17 @@ export class ShroudApp {
     }
   };
 
-  storageIsEncrypted = async (): Promise<boolean> => {
-    let data;
-    try {
-      data = await this.getItemWithFallbackToRealm(ShroudApp.FLAG_ENCRYPTED);
-    } catch (error: any) {
-      console.warn('error reading `' + ShroudApp.FLAG_ENCRYPTED + '` key:', error.message);
-      return false;
-    }
-
-    return Boolean(data);
-  };
-
-  isPasswordInUse = async (password: string) => {
-    try {
-      let data = await this.getItem('data');
-      data = this.decryptData(data, password);
-      return Boolean(data);
-    } catch (_e) {
-      return false;
-    }
-  };
-
-  /**
-   * Iterates through all values of `data` trying to
-   * decrypt each one, and returns first one successfully decrypted
-   */
-  decryptData(data: string, password: string): boolean | string {
-    data = JSON.parse(data);
-    let decrypted;
-    let num = 0;
-    for (const value of data) {
-      decrypted = encryption.decrypt(value, password);
-
-      if (decrypted) {
-        usedBucketNum = num;
-        return decrypted;
-      }
-      num++;
-    }
-
-    return false;
-  }
-
-  decryptStorage = async (password: string): Promise<boolean> => {
-    if (password === this.cachedPassword) {
-      this.cachedPassword = undefined;
-      await this.saveToDisk();
-      this.wallets = [];
-      this.tx_metadata = {};
-      this.contacts = {};
-      return this.loadFromDisk();
-    } else {
-      throw new Error('Incorrect password. Please, try again.');
-    }
-  };
-
-  encryptStorage = async (password: string): Promise<void> => {
-    // assuming the storage is not yet encrypted
-    await this.saveToDisk();
-    let data = await this.getItem('data');
-    // TODO: refactor ^^^ (should not save & load to fetch data)
-
-    const encrypted = encryption.encrypt(data, password);
-    data = [];
-    data.push(encrypted); // putting in array as we might have many buckets with storages
-    data = JSON.stringify(data);
-    this.cachedPassword = password;
-    await this.setItem('data', data);
-    await this.setItem(ShroudApp.FLAG_ENCRYPTED, '1');
-  };
-
-  /**
-   * Cleans up all current application data (wallets, tx metadata etc)
-   * Encrypts the bucket and saves it storage
-   */
-  createFakeStorage = async (fakePassword: string): Promise<boolean> => {
-    usedBucketNum = false; // resetting currently used bucket so we wont overwrite it
-    this.wallets = [];
-    this.tx_metadata = {};
-    this.contacts = {};
-
-    const data: TBucketStorage = {
-      wallets: [],
-      tx_metadata: {},
-      contacts: {},
-    };
-
-    let buckets = await this.getItem('data');
-    buckets = JSON.parse(buckets);
-    buckets.push(encryption.encrypt(JSON.stringify(data), fakePassword));
-    this.cachedPassword = fakePassword;
-    const bucketsString = JSON.stringify(buckets);
-    await this.setItem('data', bucketsString);
-    return (await this.getItem('data')) === bucketsString;
-  };
-
   hashIt = (s: string): string => {
     return Buffer.from(sha256(s)).toString('hex');
   };
 
   /**
-   * Returns instace of the Realm database, which is encrypted either by cached user's password OR default password.
+   * Returns instace of the Realm database, which is encrypted by a fixed local key.
    * Database file is deterministically derived from encryption key.
    */
   async getRealmForTransactions() {
     const cacheFolderPath = RNFS.CachesDirectoryPath; // Path to cache folder
-    const password = this.hashIt(this.cachedPassword || 'fyegjitkyf[eqjnc.lf');
+    const password = this.hashIt('fyegjitkyf[eqjnc.lf');
     const buf = Buffer.from(this.hashIt(password) + this.hashIt(password), 'hex');
     const encryptionKey = Int8Array.from(buf);
     const fileName = this.hashIt(this.hashIt(password)) + '-wallettransactions.realm';
@@ -319,24 +218,16 @@ export class ShroudApp {
    * Loads from storage all wallets and
    * maps them to `this.wallets`
    *
-   * @param password If present means storage must be decrypted before usage
    * @returns {Promise.<boolean>}
    */
-  async loadFromDisk(password?: string): Promise<boolean> {
+  async loadFromDisk(): Promise<boolean> {
     // Wrap inside a try so if anything goes wrong it wont block loadFromDisk from continuing
     try {
       await this.moveRealmFilesToCacheDirectory();
     } catch (error: any) {
       console.warn('moveRealmFilesToCacheDirectory error:', error.message);
     }
-    let dataRaw = await this.getItemWithFallbackToRealm('data');
-    if (password) {
-      dataRaw = this.decryptData(dataRaw, password);
-      if (dataRaw) {
-        // password is good, cache it
-        this.cachedPassword = password;
-      }
-    }
+    const dataRaw = await this.getItemWithFallbackToRealm('data');
     if (dataRaw !== null) {
       let realm;
       try {
@@ -547,53 +438,17 @@ export class ShroudApp {
       }
       if (realm) realm.close();
 
-      let data: TBucketStorage | string[] /* either a bucket, or an array of encrypted buckets */ = {
+      const data: TBucketStorage = {
         wallets: walletsToSave,
         tx_metadata: this.tx_metadata,
         contacts: this.contacts,
       };
 
-      if (this.cachedPassword) {
-        // should find the correct bucket, encrypt and then save
-        let buckets = await this.getItemWithFallbackToRealm('data');
-        buckets = JSON.parse(buckets);
-        const newData: string[] = []; // serialized buckets
-        let num = 0;
-        for (const bucket of buckets) {
-          let decrypted;
-          // if we had `usedBucketNum` during loadFromDisk(), no point to try to decode each bucket to find the one we
-          // need, we just to find bucket with the same index
-          if (usedBucketNum !== false) {
-            if (num === usedBucketNum) {
-              decrypted = true;
-            }
-            num++;
-          } else {
-            // we dont have `usedBucketNum` for whatever reason, so lets try to decrypt each bucket after bucket
-            // till we find the right one
-            decrypted = encryption.decrypt(bucket, this.cachedPassword);
-          }
-
-          if (!decrypted) {
-            // no luck decrypting, its not our bucket
-            newData.push(bucket);
-          } else {
-            // decrypted ok, this is our bucket
-            // we serialize our object's data, encrypt it, and add it to buckets
-            newData.push(encryption.encrypt(JSON.stringify(data), this.cachedPassword));
-          }
-        }
-
-        data = newData;
-      }
-
       await this.setItem('data', JSON.stringify(data));
-      await this.setItem(ShroudApp.FLAG_ENCRYPTED, this.cachedPassword ? '1' : '');
 
       // now, backing up same data in realm:
       const realmkeyValue = await this.openRealmKeyValue();
       this.saveToRealmKeyValue(realmkeyValue, 'data', JSON.stringify(data));
-      this.saveToRealmKeyValue(realmkeyValue, ShroudApp.FLAG_ENCRYPTED, this.cachedPassword ? '1' : '');
       realmkeyValue.close();
     } catch (error: any) {
       console.error('save to disk exception:', error.message);

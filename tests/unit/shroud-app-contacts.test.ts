@@ -47,22 +47,4 @@ describe('ShroudApp persistence', () => {
     assert.deepStrictEqual(reloaded.contacts, {});
     assert.deepStrictEqual(reloaded.tx_metadata, { abc: { memo: 'x' } });
   });
-
-  it('blanks contacts in the plausible-deniability decoy bucket', async () => {
-    const app = new ShroudApp();
-    app.contacts = { [ADDR_A]: { name: 'Anmol Sharma', createdAt: 1000, colorIndex: 2 } };
-    // createFakeStorage appends a decoy bucket to an already-encrypted `data` array, matching
-    // how screen/PlausibleDeniability.tsx only reaches this call once storage is encrypted.
-    await app.encryptStorage('real-password');
-
-    await app.createFakeStorage('duress-password');
-
-    // In-memory state is cleared...
-    assert.deepStrictEqual(app.contacts, {});
-
-    // ...and so is the decoy bucket that the duress password opens.
-    const decoy = new ShroudApp();
-    assert.strictEqual(await decoy.loadFromDisk('duress-password'), true);
-    assert.deepStrictEqual(decoy.contacts, {});
-  });
 });
