@@ -277,6 +277,16 @@ const tokens = {
   // passes (Send redesign, onboarding), and this glyph's fill is a fact about this icon, not a
   // borrowed brand token that could drift independently later.
   paymentBadgeFill: pair(palette.violet600, palette.violet525),
+
+  // --- No Payment Found tile tokens ---
+  // Exact hex from the design export (light only). Dark halo reuses brown900, the app's
+  // established amber-family dark surface (surfaceCaution/changeBackground); dark accent reuses
+  // iconCaution's warm amber, already vetted elsewhere as legible on a dark background — no
+  // dark-mode value was given for this specific tile, so these are the closest verified matches
+  // rather than new invented hex.
+  notFoundTileHalo: pair('#FDF4E6', palette.brown900),
+  // Dashed card border + the single centered dash glyph inside it.
+  notFoundTileAccent: pair('#E8912A', '#F1AF63'),
 } satisfies Record<string, ColorToken>;
 
 type Scheme = 'light' | 'dark';
