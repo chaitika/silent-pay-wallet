@@ -21,11 +21,13 @@ interface ButtonProps extends PressableProps {
   buttonTextColor?: string;
   disabled?: boolean;
   testID?: string;
-  icon?: {
-    name: string;
-    type: string;
-    color: string;
-  };
+  icon?:
+    | {
+        name: string;
+        type: string;
+        color: string;
+      }
+    | React.ReactElement;
   title?: string;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
@@ -35,6 +37,11 @@ interface ButtonProps extends PressableProps {
   disabledBackgroundColor?: string;
   disabledTextColor?: string;
 }
+
+// Distinguishes the two `icon` shapes via the same check the rest of the codebase uses for this
+// exact distinction (FloatButtons.tsx, BottomModal.tsx), rather than duck-typing on `name`.
+const isIconConfig = (icon: NonNullable<ButtonProps['icon']>): icon is { name: string; type: string; color: string } =>
+  !React.isValidElement(icon);
 
 export const Button = forwardRef<React.ElementRef<typeof Pressable>, ButtonProps>((props, ref) => {
   const { colors } = useTheme();
@@ -56,12 +63,13 @@ export const Button = forwardRef<React.ElementRef<typeof Pressable>, ButtonProps
   };
 
   const textStyle = [styles.text, { color: fontColor }, props.textStyle];
+  const icon = props.icon;
 
   const buttonView = props.showActivityIndicator ? (
     <ActivityIndicator size="small" color={fontColor} />
   ) : (
     <>
-      {props.icon && <Icon name={props.icon.name} type={props.icon.type} color={props.icon.color} />}
+      {icon && (isIconConfig(icon) ? <Icon name={icon.name} type={icon.type} color={icon.color} /> : icon)}
       {props.title && <Text style={textStyle}>{props.title}</Text>}
     </>
   );
