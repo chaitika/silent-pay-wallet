@@ -1,7 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Icon } from '@rneui/themed';
-import { CommonActions } from '@react-navigation/native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import SafeArea from '../../components/SafeArea';
@@ -10,13 +8,19 @@ import { useStorage } from '../../hooks/context/useStorage';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import { DetailViewStackParamList } from '../../navigation/DetailViewStackParamList';
 import { HDSilentPaymentsWallet } from '../../class/wallets/hd-bip352-wallet';
-import loc, { formatBalance } from '../../loc';
+import loc, { formatBalanceWithoutSuffix } from '../../loc';
 import { satoshiToLocalCurrency } from '../../modules/currency';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
-import { Spacing20 } from '../../components/Spacing';
 import Button from '../../components/Button';
+import OutlineButton from '../../components/OutlineButton';
+import CheckBadgeIcon from '../../components/icons/CheckBadgeIcon';
+import SegmentedProgressBar from '../../components/SegmentedProgressBar';
+import { ClashFont } from '../../constants/fonts';
 
 const CONFIRMATIONS_THRESHOLD = 6;
+// Bitcoin's target block interval - used only to give the "usually takes about N minutes"
+// message a number; an estimate, not a guarantee (actual block times vary).
+const AVERAGE_BLOCK_MINUTES = 10;
 
 type PaymentFoundProps = NativeStackScreenProps<DetailViewStackParamList, 'PaymentFound'>;
 
@@ -36,9 +40,9 @@ const PaymentFound: React.FC<PaymentFoundProps> = ({ route }) => {
   const isConfirmed = confirmations >= CONFIRMATIONS_THRESHOLD;
   const confirmationsDisplay = Math.min(confirmations, CONFIRMATIONS_THRESHOLD);
   const remaining = CONFIRMATIONS_THRESHOLD - confirmationsDisplay;
-  const progressRatio = confirmationsDisplay / CONFIRMATIONS_THRESHOLD;
+  const estimatedMinutes = remaining * AVERAGE_BLOCK_MINUTES;
 
-  const formattedBTC = formatBalance(totalValue, BitcoinUnit.BTC);
+  const formattedBTC = formatBalanceWithoutSuffix(totalValue, BitcoinUnit.BTC, true);
   const formattedFiat = satoshiToLocalCurrency(totalValue);
 
   // A self-send shows up here as a wallet-owned change output, not a payment from someone else.
@@ -49,84 +53,103 @@ const PaymentFound: React.FC<PaymentFoundProps> = ({ route }) => {
     navigation.navigate('TransactionDetails', { tx, hash: txid, walletID: wallet?.getID() ?? '' });
   };
 
+  // Always enabled - dismissing this screen isn't an action that needs confirmations to be safe,
+  // it just leaves. Resets the whole stack (not a local pop) so returning to WalletsList can't
+  // leave this flow's screens sitting underneath it.
   const handleDone = () => {
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: 'WalletsList' }],
-      }),
-    );
+    navigation.navigateToWalletsList();
   };
 
-  const confirmingColor = colors.warningColor;
-
   const stylesHook = StyleSheet.create({
-    amount: { color: colors.foregroundColor },
-    fiat: { color: colors.alternativeTextColor },
-    detailsCard: { backgroundColor: colors.ballOutgoingExpired },
-    rowLabel: { color: colors.alternativeTextColor },
-    progressTrack: { backgroundColor: colors.formBorder },
-    attentionBox: { backgroundColor: colors.ballOutgoingExpired },
-    attentionText: { color: colors.foregroundColor },
-    outlineButton: { borderColor: colors.formBorder },
-    outlineButtonText: { color: colors.foregroundColor },
+    statusLabel: { color: colors.textBrand },
+    amount: { color: colors.textEmphasis },
+    unit: { color: colors.textSecondary },
+    fiat: { color: colors.textSecondary },
+    changeNote: { color: colors.textSecondary },
+    confirmationsCard: { backgroundColor: colors.surfaceSubtle, borderColor: colors.accentSubtle },
+    confirmationsLabel: { color: colors.textSecondary },
+    confirmationsCount: { color: colors.textBrand },
+    messageBox: { backgroundColor: colors.background },
+    messageHighlight: { color: colors.textPrimary },
+    messageBody: { color: colors.textSecondary },
+    confirmedMessage: { color: colors.textPrimary },
   });
 
   return (
     <SafeArea>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <View style={[styles.checkmarkContainer, { backgroundColor: colors.successColor + '20' }]}>
-            <Icon name="check" size={40} type="material" color={colors.successCheck} />
-          </View>
-          <Text style={[styles.foundItText, { color: colors.successCheck }]}>{loc.payment_found.found_it}</Text>
-
-          <Spacing20 />
-
-          <Text style={[styles.amount, stylesHook.amount]}>+{formattedBTC}</Text>
-          <Text style={[styles.fiat, stylesHook.fiat]}>≈ {formattedFiat}</Text>
-          {isOwnChange && <Text style={[styles.changeNote, stylesHook.fiat]}>{loc.payment_found.change_note}</Text>}
-
-          <Spacing20 />
-
-          <View style={[styles.detailsCard, stylesHook.detailsCard]}>
-            <View style={styles.detailRow}>
-              <Text style={[styles.rowLabel, stylesHook.rowLabel]}>{loc.payment_found.status}</Text>
-              <Text style={[styles.statusText, { color: isConfirmed ? colors.successCheck : confirmingColor }]}>
-                {isConfirmed ? loc.payment_found.confirmed : loc.payment_found.confirming_label}
-              </Text>
-            </View>
-            <View style={[styles.progressTrackFull, stylesHook.progressTrack]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${progressRatio * 100}%`, backgroundColor: isConfirmed ? colors.successCheck : confirmingColor },
-                ]}
-              />
-            </View>
-            <Text style={[styles.progressText, { color: colors.successCheck }]}>
-              {confirmationsDisplay} of {CONFIRMATIONS_THRESHOLD}
+          <View style={styles.hero}>
+            <CheckBadgeIcon
+              size={98}
+              showHalo
+              color={colors.paymentBadgeFill}
+              haloBackground={colors.surfaceSubtle}
+              haloBorder={colors.accentSubtle}
+            />
+            <Text style={[styles.statusLabel, stylesHook.statusLabel]}>
+              {isConfirmed ? loc.payment_found.confirmed : loc.payment_found.detected}
             </Text>
           </View>
 
-          <Spacing20 />
+          <View style={styles.amountGroup}>
+            <View style={styles.amountRow}>
+              <Text style={[styles.amount, stylesHook.amount]} adjustsFontSizeToFit numberOfLines={1}>
+                {formattedBTC}
+              </Text>
+              <Text style={[styles.unit, stylesHook.unit]}>{BitcoinUnit.BTC}</Text>
+            </View>
+            <Text style={[styles.fiat, stylesHook.fiat]}>≈ {formattedFiat}</Text>
+            {isOwnChange && <Text style={[styles.changeNote, stylesHook.changeNote]}>{loc.payment_found.change_note}</Text>}
+          </View>
 
-          {!isConfirmed && (
-            <View style={[styles.attentionBox, stylesHook.attentionBox]}>
-              <Text style={[styles.attentionHighlight, { color: confirmingColor }]}>
-                {loc.payment_found.attention_highlight}{' '}
-                <Text style={stylesHook.attentionText}>{loc.formatString(loc.payment_found.attention, { count: String(remaining) })}</Text>
+          <View style={[styles.confirmationsCard, stylesHook.confirmationsCard]}>
+            <View style={styles.confirmationsHeader}>
+              <Text style={[styles.confirmationsLabel, stylesHook.confirmationsLabel]}>{loc.payment_found.confirmations_header}</Text>
+              <Text style={[styles.confirmationsCount, stylesHook.confirmationsCount]}>
+                {loc.formatString(loc.payment_found.confirmations_count, { current: confirmationsDisplay, total: CONFIRMATIONS_THRESHOLD })}
               </Text>
             </View>
-          )}
+
+            <SegmentedProgressBar
+              segments={CONFIRMATIONS_THRESHOLD}
+              filled={confirmationsDisplay}
+              filledColor={isConfirmed ? colors.successCheck : colors.paymentBadgeFill}
+              trackColor={colors.progressTrack}
+            />
+
+            <View style={[styles.messageBox, stylesHook.messageBox]}>
+              {isConfirmed ? (
+                <View style={styles.confirmedMessageRow}>
+                  <CheckBadgeIcon size={20} color={colors.paymentBadgeFill} />
+                  <Text style={[styles.confirmedMessage, stylesHook.confirmedMessage]}>{loc.payment_found.confirmed_message}</Text>
+                </View>
+              ) : (
+                <Text style={styles.messageText}>
+                  <Text style={[styles.messageHighlight, stylesHook.messageHighlight]}>
+                    {loc.formatString(loc.payment_found.confirming_highlight, { count: String(remaining) })}
+                  </Text>
+                  <Text style={stylesHook.messageBody}>
+                    {loc.formatString(loc.payment_found.confirming_body, { minutes: String(estimatedMinutes) })}
+                  </Text>
+                </Text>
+              )}
+            </View>
+          </View>
         </View>
 
         <View style={styles.buttonContainer}>
-          <Pressable style={[styles.outlineButton, stylesHook.outlineButton]} onPress={handleViewDetails} testID="ViewDetailsButton">
-            <Text style={[styles.outlineButtonText, stylesHook.outlineButtonText]}>{loc.payment_found.view_details}</Text>
-          </Pressable>
-          <View style={styles.buttonSpacer} />
-          <Button title={loc.payment_found.done} onPress={handleDone} testID="DoneButton" />
+          <OutlineButton title={loc.payment_found.view_details} onPress={handleViewDetails} testID="ViewDetailsButton" />
+          <Button
+            title={loc.payment_found.done}
+            onPress={handleDone}
+            testID="DoneButton"
+            backgroundColor={colors.paymentBadgeFill}
+            buttonTextColor={colors.white}
+            borderRadius={16}
+            style={styles.doneButton}
+            textStyle={styles.doneButtonText}
+          />
         </View>
       </ScrollView>
     </SafeArea>
@@ -138,100 +161,114 @@ export default PaymentFound;
 const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingHorizontal: 24,
+    paddingTop: 32,
     justifyContent: 'space-between',
   },
   content: {
     alignItems: 'center',
+    gap: 24,
   },
-  checkmarkContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  hero: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
+    gap: 12,
   },
-  foundItText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 12,
+  statusLabel: {
+    fontFamily: ClashFont.medium,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  amountGroup: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
   },
   amount: {
-    fontSize: 36,
-    fontWeight: '700',
+    fontFamily: ClashFont.medium,
+    fontSize: 48,
+    lineHeight: 48,
+    letterSpacing: -1.2,
     textAlign: 'center',
+    flexShrink: 1,
+  },
+  unit: {
+    fontFamily: ClashFont.regular,
+    fontSize: 22,
+    marginLeft: 10,
   },
   fiat: {
-    fontSize: 16,
+    fontFamily: ClashFont.regular,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  changeNote: {
+    fontFamily: ClashFont.regular,
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: 'center',
     marginTop: 4,
   },
-  changeNote: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  detailsCard: {
-    borderRadius: 12,
-    padding: 16,
+  confirmationsCard: {
     width: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
   },
-  detailRow: {
+  confirmationsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
   },
-  rowLabel: {
+  confirmationsLabel: {
+    fontFamily: ClashFont.regular,
     fontSize: 14,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  progressTrackFull: {
-    width: '100%',
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginTop: 12,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 14,
-    marginTop: 8,
-  },
-  attentionBox: {
-    borderRadius: 12,
-    padding: 16,
-    width: '100%',
-  },
-  attentionHighlight: {
-    fontSize: 13,
     lineHeight: 20,
-    fontWeight: '600',
+  },
+  confirmationsCount: {
+    fontFamily: ClashFont.medium,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  messageBox: {
+    borderRadius: 12,
+    padding: 12,
+  },
+  messageText: {
+    fontFamily: ClashFont.regular,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  messageHighlight: {
+    fontFamily: ClashFont.medium,
+  },
+  confirmedMessageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  confirmedMessage: {
+    flex: 1,
+    fontFamily: ClashFont.regular,
+    fontSize: 14,
+    lineHeight: 20,
   },
   buttonContainer: {
-    paddingBottom: 30,
     paddingTop: 20,
+    paddingBottom: 24,
+    gap: 12,
   },
-  buttonSpacer: {
-    height: 12,
+  doneButton: {
+    height: 56,
+    minHeight: 56,
+    maxHeight: 56,
   },
-  outlineButton: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outlineButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+  doneButtonText: {
+    fontFamily: ClashFont.medium,
   },
 });

@@ -270,6 +270,13 @@ const tokens = {
   removeSurface: pair('#FBE1DF', palette.slate950), // Remove Contact button background
   removeBorder: pair('#FFC9C9', palette.red500), // Remove Contact button border
   removeText: pair('#E7000B', palette.red500), // Remove Contact button label + trash glyph
+
+  // --- Payment Found badge token ---
+  // The checkmark-badge squircle fill (Payment detected / Confirmed states share one icon).
+  // Same light/dark pair as brandStrong/vividAccent, but scoped: those belong to unrelated design
+  // passes (Send redesign, onboarding), and this glyph's fill is a fact about this icon, not a
+  // borrowed brand token that could drift independently later.
+  paymentBadgeFill: pair(palette.violet600, palette.violet525),
 } satisfies Record<string, ColorToken>;
 
 type Scheme = 'light' | 'dark';
