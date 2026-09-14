@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   text: {
     flex: 1,
     fontFamily: ClashFont.regular,
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 23,
   },
   emphasis: {
