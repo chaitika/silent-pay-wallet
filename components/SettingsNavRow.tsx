@@ -28,7 +28,7 @@ const SettingsNavRow: React.FC<SettingsNavRowProps> = ({ title, value, onPress, 
         <Text style={[styles.rowTitle, { color: colors.settingsRowTitle }]}>{title}</Text>
         <View style={styles.navRowValue}>
           {value ? <Text style={[styles.navRowValueText, { color: colors.alternativeTextColor }]}>{value}</Text> : null}
-          <ChevronRightIcon />
+          <ChevronRightIcon color={colors.chevron} />
         </View>
       </Pressable>
     </SettingsRowWrapper>

@@ -19,8 +19,6 @@ interface SettingsRowProps {
   rightElement?: React.ReactNode;
 }
 
-const DEFAULT_CHEVRON = <ChevronRightIcon />;
-
 const SettingsRow: React.FC<SettingsRowProps> = ({
   icon,
   title,
@@ -32,7 +30,7 @@ const SettingsRow: React.FC<SettingsRowProps> = ({
   testID,
   showSeparator = true,
   circle = false,
-  rightElement = DEFAULT_CHEVRON,
+  rightElement,
 }) => {
   const { colors } = useTheme();
   return (
@@ -57,7 +55,7 @@ const SettingsRow: React.FC<SettingsRowProps> = ({
         </Text>
         {subtitle ? <Text style={[styles.rowSubtitle, { color: colors.alternativeTextColor }]}>{subtitle}</Text> : null}
       </View>
-      {isLoading ? <ActivityIndicator color={colors.settingsRowTitle} /> : rightElement}
+      {isLoading ? <ActivityIndicator color={colors.settingsRowTitle} /> : (rightElement ?? <ChevronRightIcon color={colors.chevron} />)}
     </Pressable>
   );
 };
