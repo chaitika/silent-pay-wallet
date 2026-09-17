@@ -1,5 +1,5 @@
 import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
   Modal,
@@ -20,6 +20,7 @@ import { useExtendedNavigation } from '../../hooks/useExtendedNavigation.ts';
 import { AddWalletStackParamList } from '../../navigation/AddWalletStack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import loc from '../../loc';
+import presentAlert from '../../components/Alert';
 import SeedVerification from '../../components/SeedVerification';
 import { isE2E } from '../../helpers/e2e';
 import { useTheme } from '../../components/themes';
@@ -62,7 +63,10 @@ const PleaseBackup: React.FC = () => {
   const { walletID } = useRoute<RouteProps>().params;
   const wallet = wallets.find(w => w.getID() === walletID)!;
   const seedPhrase = wallet.getSecret();
-  const seedWords = seedPhrase.split(' ');
+  // Stable identity: SeedVerification re-shuffles whenever its `seed` prop identity changes, so a
+  // fresh array on every PleaseBackup render (a wallets/settings/theme update while VERIFY is on
+  // screen) would silently reshuffle mid-verification and desync the selection state from it.
+  const seedWords = useMemo(() => seedPhrase.split(' '), [seedPhrase]);
   const navigation = useExtendedNavigation();
   const { colors } = useTheme();
   const { isScreenCaptureAllowed } = useSettings();
@@ -105,12 +109,24 @@ const PleaseBackup: React.FC = () => {
   // Modal's Dialog swallows all screen touches while visible (Android default), including the
   // header back button — this invisible same-position target restores it, using
   // BackupStepHeader's own fixed offsets (no ref/measurement needed — see insets above).
-  const backButtonWindowLayout: Rect = { left: insets.left + 24, top: insets.top + 16, width: 32, height: 32 };
+  // Window-absolute for the real Modal path (a genuinely separate window starting at the true
+  // screen origin); under isE2E() these render as a plain sibling inside stepRoot instead (see
+  // revealContent below), which already starts at the safe-area insets — so no insets offset there.
+  const backButtonLayout: Rect = isE2E()
+    ? { left: 24, top: 16, width: 32, height: 32 }
+    : { left: insets.left + 24, top: insets.top + 16, width: 32, height: 32 };
+  const revealLayout: Rect | null = revealWindowLayout
+    ? isE2E()
+      ? { ...revealWindowLayout, left: revealWindowLayout.left - insets.left, top: revealWindowLayout.top - insets.top }
+      : revealWindowLayout
+    : null;
 
   // Revealed: only the index box carries a fill — the word half is transparent, matching design.
+  // rowBg is left undefined rather than pointed at a "transparent" token: RN drops an undefined
+  // style value, which renders exactly as transparent without needing a color for "no color."
   const pillColors = isRevealed
     ? {
-        rowBg: colors.transparent,
+        rowBg: undefined,
         rowBorder: colors.revealedPillBorder,
         indexBg: colors.gridContainerBackground,
         indexBorder: colors.revealedPillBorder,
@@ -141,6 +157,21 @@ const PleaseBackup: React.FC = () => {
     setCurrentStep(BackupStep.SHOW_SEED);
   };
 
+  // The intro step is the only step with a working way off this screen (hardware back and swipe
+  // are blocked below, specifically so a freshly-created, unbacked-up wallet can't be walked away
+  // from by accident) — so leaving from here has to be a deliberate choice, not a bare goBack().
+  const handleSkipBackup = () => {
+    presentAlert({
+      title: loc.pleasebackup.skip_title,
+      message: loc.pleasebackup.skip_message,
+      buttons: [
+        { text: loc._.cancel, style: 'cancel' },
+        { text: loc.pleasebackup.skip_confirm, style: 'destructive', onPress: () => navigation.goBack() },
+      ],
+      options: { cancelable: false },
+    });
+  };
+
   // Re-arms the "make sure no one is watching" gate: without this, leaving and returning to this
   // step shows the seed already revealed and the checkbox already checked from last time.
   const handleBackToIntro = () => {
@@ -155,14 +186,10 @@ const PleaseBackup: React.FC = () => {
   // PleaseBackupScrollView and SkipVerifyBackdoor) unreachable to e2e tests. No current e2e spec
   // exercises this reveal interaction directly (all bypass via SkipVerifyBackdoor), so rendering
   // it as a plain sibling under isE2E() costs no real coverage.
-  const revealContent = revealWindowLayout && (
+  const revealContent = revealLayout && (
     <View style={styles.modalRoot} pointerEvents="box-none">
-      <TouchableOpacity
-        style={[styles.backButtonGhost, backButtonWindowLayout]}
-        onPress={handleBackToIntro}
-        testID="RevealBackButtonGhost"
-      />
-      <TouchableOpacity style={[styles.revealOverlay, revealWindowLayout]} onPress={() => setIsRevealed(true)} testID="RevealSeedPhrase">
+      <TouchableOpacity style={[styles.backButtonGhost, backButtonLayout]} onPress={handleBackToIntro} testID="RevealBackButtonGhost" />
+      <TouchableOpacity style={[styles.revealOverlay, revealLayout]} onPress={() => setIsRevealed(true)} testID="RevealSeedPhrase">
         <View style={[styles.revealCircle, { backgroundColor: colors.revealCircleBackground }]}>
           <RevealEyeIcon size={64} color={colors.white} />
         </View>
@@ -194,7 +221,7 @@ const PleaseBackup: React.FC = () => {
       <SafeAreaView style={styles.safeArea}>
         {currentStep === BackupStep.INTRO && (
           <View style={styles.stepRoot}>
-            <BackupStepHeader onBack={() => navigation.goBack()} filledSteps={1} totalSteps={3} testID="BackupIntroBackButton" />
+            <BackupStepHeader onBack={handleSkipBackup} filledSteps={1} totalSteps={3} testID="BackupIntroBackButton" />
 
             <ScrollView contentContainerStyle={styles.introScrollContent}>
               <View style={[styles.iconBadge, { backgroundColor: colors.surfaceSubtle, borderColor: colors.accentSubtle }]}>
@@ -233,7 +260,12 @@ const PleaseBackup: React.FC = () => {
           <View style={styles.stepRoot}>
             <BackupStepHeader onBack={handleBackToIntro} filledSteps={2} totalSteps={3} testID="RevealBackButton" />
 
-            <ScrollView contentContainerStyle={styles.revealScrollContent} testID="PleaseBackupScrollView">
+            <ScrollView
+              contentContainerStyle={styles.revealScrollContent}
+              onScroll={handleGridLayout}
+              scrollEventThrottle={16}
+              testID="PleaseBackupScrollView"
+            >
               <Text style={[styles.title, { color: colors.textPrimary }]}>{loc.pleasebackup.title}</Text>
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{loc.pleasebackup.text}</Text>
 
@@ -248,7 +280,7 @@ const PleaseBackup: React.FC = () => {
               </View>
 
               <View
-                style={[styles.wordGridWrapper, { backgroundColor: isRevealed ? colors.transparent : colors.gridContainerBackground }]}
+                style={[styles.wordGridWrapper, !isRevealed && { backgroundColor: colors.gridContainerBackground }]}
                 onLayout={handleGridLayout}
                 ref={gridWrapperRef}
               >
@@ -314,7 +346,7 @@ const PleaseBackup: React.FC = () => {
               (isE2E() ? (
                 revealContent
               ) : (
-                <Modal transparent animationType="none" onRequestClose={handleBackToIntro}>
+                <Modal transparent statusBarTranslucent animationType="none" onRequestClose={handleBackToIntro}>
                   {revealContent}
                 </Modal>
               ))}
@@ -327,7 +359,10 @@ const PleaseBackup: React.FC = () => {
                 borderRadius={16}
                 disabled={!hasConfirmedWritten}
                 disabledBackgroundColor={colors.backupContinueDisabledBackground}
-                disabledTextColor={colors.white}
+                // Button's default disabled text (alternativeTextColor) is ~identical to this
+                // background in light mode and ~1:1 contrast in dark — colors.black is the only
+                // token here that clears 4.5:1 against both backupContinueDisabledBackground shades.
+                disabledTextColor={colors.black}
                 style={styles.footerButton}
               />
             </View>
@@ -484,8 +519,12 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  // absoluteFill, not flex: 1: in production this is the sole child of <Modal> so both are
+  // equivalent, but under isE2E() (no Modal) a flex:1 sibling renders wherever normal flow puts
+  // it — after the ScrollView, near the footer — while its children still assume this box starts
+  // at stepRoot's own origin (see backButtonLayout/revealLayout above). absoluteFill pins it there.
   modalRoot: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   backButtonGhost: {
     position: 'absolute',

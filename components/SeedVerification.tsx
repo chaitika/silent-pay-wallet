@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Icon } from '@rneui/themed';
 import loc from '../loc';
@@ -14,34 +14,8 @@ export enum WordStatus {
   INCORRECT = 'incorrect',
 }
 
-const ORDINAL_WORDS = [
-  'First',
-  'Second',
-  'Third',
-  'Fourth',
-  'Fifth',
-  'Sixth',
-  'Seventh',
-  'Eighth',
-  'Ninth',
-  'Tenth',
-  'Eleventh',
-  'Twelfth',
-  'Thirteenth',
-  'Fourteenth',
-  'Fifteenth',
-  'Sixteenth',
-  'Seventeenth',
-  'Eighteenth',
-  'Nineteenth',
-  'Twentieth',
-  'Twenty-first',
-  'Twenty-second',
-  'Twenty-third',
-  'Twenty-fourth',
-];
-
-const ordinalWord = (zeroIndexedPosition: number): string => ORDINAL_WORDS[zeroIndexedPosition] ?? `word ${zeroIndexedPosition + 1}`;
+const ordinalWord = (zeroIndexedPosition: number): string =>
+  loc.pleasebackup.ordinals[zeroIndexedPosition] ?? String(zeroIndexedPosition + 1);
 
 interface VerifyWordPillProps {
   word: string;
@@ -99,11 +73,31 @@ const SeedVerification: React.FC<SeedVerificationProps> = ({ seed, onSuccess, on
   const [selectionOrder, setSelectionOrder] = useState<{ [key: number]: number }>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Shuffle the seed words
+  // Shuffle the seed words. Not sort(() => 0.5 - Math.random()): a random comparator breaks
+  // sort's transitivity contract and produces a biased, engine-dependent permutation (words tend
+  // to stay near their original index) rather than a uniform shuffle — Fisher-Yates instead.
   useEffect(() => {
-    const shuffled = [...seed].sort(() => 0.5 - Math.random());
+    const shuffled = [...seed];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
     setShuffledWords(shuffled);
   }, [seed]);
+
+  // Both timers below are held here so a pending one can be cancelled: on unmount (e.g. the user
+  // taps "Show Phrase Again" while a timer is in flight) so it can't fire handleVerifyComplete /
+  // navigateToWalletsList after this screen is gone, and on a second wrong tap inside the same
+  // error window so two independent resets can't both schedule against a moved badge position.
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    };
+  }, []);
 
   // Handle word selection
   const handleWordSelect = (word: string, index: number) => {
@@ -132,19 +126,22 @@ const SeedVerification: React.FC<SeedVerificationProps> = ({ seed, onSuccess, on
     if (!isCorrect) {
       setErrorMessage(loc.formatString(loc.pleasebackup.error, { ordinal: ordinalWord(expectedPosition) }));
 
-      setTimeout(() => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = setTimeout(() => {
         setSelectedIndices([]);
         setWordStatus({});
         setSelectionOrder({});
         setErrorMessage(null);
+        resetTimerRef.current = null;
       }, 2500);
       return;
     }
 
     // check ALL words are selected
     if (expectedPosition + 1 === seed.length) {
-      setTimeout(() => {
+      successTimerRef.current = setTimeout(() => {
         onSuccess();
+        successTimerRef.current = null;
       }, 500);
     }
   };

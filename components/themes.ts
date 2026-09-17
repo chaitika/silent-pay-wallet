@@ -147,7 +147,7 @@ const tokens = {
   // Not settingsCardBackground/Border: those are shared by every Settings screen, unverified here.
   verifyDefaultPillBackground: pair('#F9F9FB', 'transparent'),
   verifyDefaultPillBorder: pair('#F0F0F0', '#212129'),
-  verifyErrorBannerBackground: pair('#FDFBF5', '#2E2518'), // not surfaceError — that's tuned for a different screen
+  verifyErrorBannerBackground: pair('#FDFBF5', palette.brown900), // not surfaceError — that's tuned for a different screen
   verifyShowPhraseBorder: pair(palette.violet100, '#787897'), // not accentSubtle — that's shared elsewhere
   surfaceSubtle: pair(palette.violet50, palette.violet920), // banner / card background
   accentSubtle: pair(palette.violet100, palette.slate880), // banner & card border, "check again" button bg, scanning icon ring
@@ -160,10 +160,9 @@ const tokens = {
   revealCircleBackground: pair(palette.violet600, palette.violet530),
   checkboxUncheckedColor: pair(palette.violet100, palette.slate400), // not accentSubtle — too near-black in dark to stay visible
   backupContinueDisabledBackground: pair(palette.gray400, palette.gray480), // not darkGray — that's shared with AddressItem
-  gridContainerBackground: pair('#F8F8FC', '#1A1A28'), // blurred together with every pill as one unit; gridScrimBackground darkens it further
+  gridContainerBackground: pair('#F8F8FC', palette.slate890), // blurred together with every pill as one unit; gridScrimBackground darkens it further
   gridScrimBackground: pair('#FFFFFF33', '#1A1A284D'),
-  revealedPillBorder: pair(palette.gray200Alpha, '#1A1A28'), // light matches borderDefault's --border-default; dark is pixel-verified for this screen specifically
-  transparent: same('transparent'), // named so conditional styles stay lint-clean (no-inline-styles rejects literal ternary branches)
+  revealedPillBorder: pair(palette.gray200Alpha, palette.slate890), // light matches borderDefault's --border-default; dark is pixel-verified for this screen specifically
   surfaceCaution: pair('#FDFBF5', palette.brown900), // caution banner background (address-reuse warning)
   // Separate token from surfaceCaution: caution and error are different states, so a tweak to
   // the amber caution surface must not silently restyle the error banner.
@@ -175,7 +174,10 @@ const tokens = {
   segmentSelectedBorder: pair(palette.violet100, '#3D3D3D'), // selected pill border
   segmentSelectedBackground: pair(palette.white, palette.slate890), // selected pill fill, lighter than segmentTrack
   copyHint: same(palette.gray450), // "tap to copy" icon + label
-  progressTrack: pair('#EAECF0', palette.gray200),
+  progressTrack: pair('#EAECF0', palette.violet920),
+  // Unfilled segment on the backup-flow step header specifically — deliberately lighter than
+  // progressTrack (shared with SyncScreen's sync bar; don't repoint that one to this value).
+  backupProgressTrack: pair('#EAECF0', palette.gray200),
   // Hairline rim on the filled brand button; in dark the design draws it in the brand color itself.
   buttonBorder: pair('#EBEBEB', palette.violet500),
   // Light keeps five distinct greys below; dark deliberately collapses every secondary/meta/
