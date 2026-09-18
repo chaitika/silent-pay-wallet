@@ -1,15 +1,14 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 
-import navigationStyle, { CloseButtonPosition } from '../components/navigationStyle';
+import navigationStyle from '../components/navigationStyle';
 import { useTheme } from '../components/themes';
 import loc from '../loc';
-import { AddComponent, ImportSpeedComponent, ImportWalletComponent, PleaseBackupComponent } from './LazyLoadAddWalletStack';
+import { ImportSpeedComponent, ImportWalletComponent, PleaseBackupComponent } from './LazyLoadAddWalletStack';
 import { ScanQRCodeComponent } from './LazyLoadScanQRCodeStack';
 import { ScanQRCodeParamList } from './DetailViewStackParamList';
 
 export type AddWalletStackParamList = {
-  AddWallet: undefined;
   ImportWallet?: {
     label?: string;
     triggerImport?: boolean;
@@ -31,15 +30,7 @@ const Stack = createNativeStackNavigator<AddWalletStackParamList>();
 const AddWalletStack = () => {
   const theme = useTheme();
   return (
-    <Stack.Navigator initialRouteName="AddWallet">
-      <Stack.Screen
-        name="AddWallet"
-        component={AddComponent}
-        options={navigationStyle({
-          closeButtonPosition: CloseButtonPosition.Left,
-          title: loc.wallets.add_title,
-        })(theme)}
-      />
+    <Stack.Navigator initialRouteName="ImportWallet">
       <Stack.Screen
         name="ImportWallet"
         component={ImportWalletComponent}
